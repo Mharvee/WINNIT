@@ -1,0 +1,978 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Winit — Draw Journey V2 (Lagos-focused)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0B0F2E;
+    --ink-2:#161A42;
+    --ink-3:#232964;
+    --paper:#F7F5F0;
+    --paper-dim:#EEEAE1;
+    --gold:#E8A33D;
+    --gold-deep:#C97F1E;
+    --verify:#2F9E6E;
+    --verify-dim:#DDF0E7;
+    --alert:#E8664A;
+    --alert-dim:#FBE4DD;
+    --amber:#E0A526;
+    --amber-dim:#FBF0D6;
+    --slate:#8B8FB0;
+    --slate-dark:#4A4F78;
+    --line: rgba(255,255,255,0.10);
+    --line-soft: rgba(11,15,46,0.08);
+    --shadow: 0 30px 60px -20px rgba(11,15,46,0.45);
+    --radius-lg: 26px;
+    --radius-md: 16px;
+    --radius-sm: 10px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:'Manrope', sans-serif;
+    background:
+      radial-gradient(1100px 700px at 18% -10%, #1c2260 0%, transparent 60%),
+      radial-gradient(900px 600px at 100% 10%, #17203f 0%, transparent 55%),
+      var(--ink);
+    color:var(--paper);
+    min-height:100vh;
+    display:flex; flex-direction:column; align-items:center;
+    padding:48px 20px 120px;
+  }
+
+  .page-head{ width:100%; max-width:1200px; margin-bottom:34px; }
+  .page-head .eyebrow{ font-family:'JetBrains Mono', monospace; font-size:12px; letter-spacing:0.14em; text-transform:uppercase; color:var(--gold); margin-bottom:10px; }
+  .page-head h1{ font-family:'Fraunces', serif; font-weight:600; font-size:clamp(26px,3vw,38px); line-height:1.1; max-width:680px; letter-spacing:-0.01em; }
+  .page-head p{ color:var(--slate); font-size:14px; max-width:600px; line-height:1.6; margin-top:12px; }
+  .page-head .changelog{
+    margin-top:16px; display:flex; flex-wrap:wrap; gap:8px;
+  }
+  .page-head .chip{
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; padding:5px 10px; border-radius:999px;
+    background:rgba(232,163,61,0.12); color:var(--gold); border:1px solid rgba(232,163,61,0.25);
+  }
+
+  .layout{ width:100%; max-width:1200px; display:grid; grid-template-columns:390px 1fr; gap:56px; align-items:start; }
+
+  .phone-wrap{ display:flex; flex-direction:column; align-items:center; gap:22px; }
+  .phone{
+    width:390px; height:844px; background:var(--paper); border-radius:44px; border:10px solid #05061a;
+    box-shadow:var(--shadow), 0 0 0 1px rgba(255,255,255,0.04) inset;
+    position:relative; overflow:hidden; display:flex; flex-direction:column; color:var(--ink);
+  }
+  .notch{ position:absolute; top:0; left:50%; transform:translateX(-50%); width:120px; height:26px; background:#05061a; border-radius:0 0 16px 16px; z-index:50; }
+  .statusbar{ height:42px; flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:0 26px; font-family:'JetBrains Mono', monospace; font-size:11.5px; color:var(--ink); font-weight:600; }
+
+  .app-chrome{ flex:0 0 auto; padding:0 20px 10px; display:flex; align-items:center; justify-content:space-between; }
+  .brand{ display:flex; align-items:center; gap:8px; font-family:'Fraunces', serif; font-weight:600; font-size:17px; color:var(--ink); }
+  .brand .dot{ width:8px; height:8px; border-radius:50%; background:var(--gold); }
+  .help-btn{ width:26px; height:26px; border-radius:50%; border:1px solid var(--line-soft); background:transparent; color:var(--slate-dark); font-weight:700; font-size:12.5px; cursor:pointer; }
+
+  .trust-strip{
+    flex:0 0 auto; display:flex; gap:6px; padding:0 20px 12px; border-bottom:1px solid var(--line-soft);
+    cursor:pointer;
+  }
+  .trust-strip .badge{
+    display:flex; align-items:center; gap:4px; background:var(--ink); color:var(--paper);
+    padding:5px 9px; border-radius:999px; font-size:9.5px; font-weight:700; font-family:'JetBrains Mono',monospace;
+    letter-spacing:.01em;
+  }
+  .trust-strip .badge.locked{ background:var(--alert); }
+
+  .app-body{ flex:1 1 auto; position:relative; overflow:hidden; }
+  .screen{ position:absolute; inset:0; padding:18px 20px 24px; overflow-y:auto; opacity:0; pointer-events:none; transform:translateY(6px); transition:opacity .28s ease, transform .32s ease; }
+  .screen.active{ opacity:1; pointer-events:auto; transform:translateY(0); }
+
+  .journey-rail{ flex:0 0 auto; display:flex; justify-content:center; gap:5px; padding:10px 0 14px; border-top:1px solid var(--line-soft); }
+  .journey-rail .seg{ width:20px; height:4px; border-radius:3px; background:var(--paper-dim); transition:background .2s; }
+  .journey-rail .seg.done{ background:var(--gold); }
+  .journey-rail .seg.now{ background:var(--ink); }
+
+  .eyebrow-sm{ font-family:'JetBrains Mono', monospace; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--slate-dark); font-weight:700; }
+  .h-screen{ font-family:'Fraunces', serif; font-weight:600; font-size:21px; line-height:1.16; margin-top:6px; color:var(--ink); }
+  .sub{ color:var(--slate-dark); font-size:13px; line-height:1.55; margin-top:6px; }
+
+  .card{ background:#fff; border:1px solid var(--line-soft); border-radius:var(--radius-md); padding:15px 16px; margin-top:12px; }
+  .card.dark{ background:var(--ink); color:var(--paper); border:none; }
+
+  /* pattern texture for hero */
+  .prize-hero{
+    border-radius:var(--radius-lg); padding:18px; margin-top:14px; color:#fff; position:relative; overflow:hidden;
+    background:
+      linear-gradient(135deg, #1a2060 0%, #2b3384 45%, #4d3a86 100%);
+  }
+  .prize-hero .pattern{
+    position:absolute; inset:0; opacity:.18;
+    background-image:
+      linear-gradient(45deg, rgba(232,163,61,.5) 25%, transparent 25%),
+      linear-gradient(-45deg, rgba(232,163,61,.5) 25%, transparent 25%);
+    background-size:22px 22px;
+  }
+  .prize-hero .content{ position:relative; }
+  .prize-hero .tag{ font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase; opacity:.8; }
+  .prize-hero h3{ font-family:'Fraunces',serif; font-weight:600; font-size:19px; margin-top:6px; max-width:250px; }
+  .prize-hero .meta{ margin-top:8px; font-size:11.5px; opacity:.82; }
+
+  .odds-row{ display:flex; justify-content:space-between; align-items:center; margin-top:12px; }
+  .odds-box{ text-align:left; }
+  .odds-box .k{ font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--slate-dark); font-weight:700; }
+  .odds-box .v{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:17px; margin-top:3px; color:var(--ink); }
+  .odds-box .v.small{ font-size:12px; color:var(--slate-dark); font-weight:600; }
+
+  .btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:12px 16px; border-radius:12px; border:none; cursor:pointer; font-family:'Manrope'; font-weight:700; font-size:13.5px; margin-top:12px; transition:transform .15s ease, opacity .15s ease; }
+  .btn:hover{ transform:translateY(-1px); }
+  .btn-primary{ background:var(--ink); color:#fff; }
+  .btn-ghost{ background:transparent; color:var(--ink); border:1.5px solid var(--line-soft); }
+  .btn-gold{ background:var(--gold); color:#2b1a02; }
+  .btn:disabled{ opacity:.4; cursor:not-allowed; transform:none; }
+
+  .link-row{ margin-top:14px; display:flex; align-items:center; justify-content:center; gap:6px; color:var(--slate-dark); font-size:12px; font-weight:600; cursor:pointer; }
+  .link-row:hover{ color:var(--ink); }
+
+  /* countdown mini (lobby) */
+  .mini-cd{ margin-top:12px; display:flex; align-items:center; justify-content:space-between; background:var(--paper-dim); border-radius:12px; padding:10px 14px; }
+  .mini-cd .lft{ font-size:12px; font-weight:700; color:var(--ink); }
+  .mini-cd .rgt{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14px; color:var(--ink); }
+  .mini-cd .note{ font-size:10.5px; color:var(--slate-dark); margin-top:2px; }
+
+  /* boost screen */
+  .stepper-card{ margin-top:14px; }
+  .stepper-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .stepper-ctrl{ display:flex; align-items:center; gap:10px; }
+  .stepper-btn{ width:34px; height:34px; border-radius:9px; border:1.5px solid var(--line-soft); background:#fff; font-size:17px; font-weight:700; cursor:pointer; color:var(--ink); }
+  .stepper-val{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:16px; min-width:26px; text-align:center; }
+  .preview-box{ margin-top:14px; background:var(--paper-dim); border-radius:12px; padding:12px 14px; }
+  .preview-row{ display:flex; justify-content:space-between; font-size:12px; margin-top:6px; }
+  .preview-row:first-child{ margin-top:0; }
+  .preview-row .k{ color:var(--slate-dark); font-weight:600; }
+  .preview-row .v{ font-weight:700; color:var(--ink); font-family:'JetBrains Mono',monospace; }
+  .preview-row .v.up{ color:var(--verify); }
+
+  .spend-note{ margin-top:12px; display:flex; justify-content:space-between; align-items:center; background:#fff; border:1px dashed var(--line-soft); border-radius:12px; padding:10px 12px; }
+  .spend-note .t{ font-size:11.5px; color:var(--slate-dark); }
+  .spend-note .t b{ color:var(--ink); }
+  .spend-note .lnk{ font-size:10.5px; font-weight:700; color:var(--gold-deep); cursor:pointer; white-space:nowrap; }
+
+  .sales-status{ margin-top:14px; padding:11px 13px; border-radius:12px; font-size:12px; font-weight:700; display:flex; align-items:center; gap:8px; }
+  .sales-status.open{ background:var(--verify-dim); color:#0c5c3d; }
+  .sales-status.closing{ background:var(--amber-dim); color:#7a5300; }
+  .sales-status.locked{ background:var(--alert-dim); color:#8a2c17; }
+
+  .toast{
+    position:absolute; left:20px; right:20px; bottom:70px; background:var(--ink); color:#fff;
+    padding:12px 14px; border-radius:12px; font-size:12.5px; font-weight:700; text-align:center;
+    box-shadow:0 12px 24px rgba(0,0,0,.25); z-index:60;
+    opacity:0; transform:translateY(10px); transition:opacity .25s ease, transform .25s ease; pointer-events:none;
+  }
+  .toast.show{ opacity:1; transform:translateY(0); }
+
+  /* countdown screen */
+  .countdown{ margin-top:14px; background:var(--ink); border-radius:var(--radius-lg); padding:20px; display:flex; flex-direction:column; align-items:center; gap:12px; position:relative; overflow:hidden; }
+  .countdown .lbl{ font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--slate); }
+  .countdown .tz{ font-size:10px; color:var(--slate); margin-top:-6px; }
+  .cd-tiles{ display:flex; align-items:center; gap:8px; }
+  .cd-tiles .tile{ background:var(--ink-2); color:#fff; width:56px; height:64px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-weight:700; font-size:26px; border:1px solid rgba(255,255,255,0.06); transition:background .3s ease, color .3s ease; }
+  .cd-tiles .tile.closing{ background:var(--amber); color:#2b1a02; }
+  .cd-tiles .tile.locked{ background:var(--alert); color:#fff; }
+  .cd-tiles .colon{ color:var(--gold); font-weight:700; font-size:20px; }
+  .cd-unit{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .cd-unit span.u{ font-size:9px; color:var(--slate); text-transform:uppercase; letter-spacing:.08em; }
+  .lock-overlay{ position:absolute; inset:0; background:rgba(11,15,46,0.92); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; opacity:0; pointer-events:none; transition:opacity .3s ease; }
+  .lock-overlay.show{ opacity:1; }
+  .lock-overlay .ic{ font-size:30px; }
+  .lock-overlay .t{ font-weight:700; font-size:14px; color:#fff; }
+  .lock-overlay .s{ font-size:11.5px; color:var(--slate); text-align:center; max-width:240px; }
+
+  .phase-line{ margin-top:14px; display:flex; align-items:center; gap:4px; }
+  .phase-seg{ flex:1; height:5px; border-radius:3px; background:var(--paper-dim); position:relative; overflow:hidden; }
+  .phase-seg .fill{ position:absolute; inset:0; width:0%; background:var(--gold); transition:width .3s linear; }
+  .phase-seg.lock-seg .fill{ background:var(--alert); }
+  .phase-labels{ display:flex; justify-content:space-between; margin-top:6px; }
+  .phase-labels span{ font-size:9.5px; color:var(--slate-dark); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+
+  /* checklist (sealing) */
+  .checklist{ margin-top:18px; display:flex; flex-direction:column; gap:10px; }
+  .check-item{ display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--line-soft); border-radius:12px; padding:12px 14px; opacity:.35; transition:opacity .3s ease; }
+  .check-item.on{ opacity:1; }
+  .check-item .cbox{ width:20px; height:20px; border-radius:6px; border:2px solid var(--line-soft); flex:none; display:flex; align-items:center; justify-content:center; font-size:11px; color:#fff; }
+  .check-item.on .cbox{ background:var(--verify); border-color:var(--verify); }
+  .check-item .txt{ font-size:12.5px; font-weight:700; color:var(--ink); }
+  .check-item .sub-txt{ font-size:11px; color:var(--slate-dark); margin-top:2px; }
+
+  /* live */
+  .status-pill{ display:inline-flex; align-items:center; gap:6px; background:var(--verify-dim); color:#0c5c3d; padding:6px 12px; border-radius:999px; font-size:11px; font-weight:700; margin-top:8px; }
+  .status-pill .pulse{ width:7px; height:7px; border-radius:50%; background:var(--verify); animation:pulse 1.4s infinite; }
+  @keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(47,158,110,.55);} 70%{box-shadow:0 0 0 7px rgba(47,158,110,0);} 100%{box-shadow:0 0 0 0 rgba(47,158,110,0);} }
+  .reel-wrap{ margin-top:16px; background:var(--ink); border-radius:var(--radius-lg); padding:20px 12px; }
+  .reel-groups{ display:flex; flex-direction:column; gap:8px; align-items:center; }
+  .reel-block{ display:flex; gap:5px; }
+  .reel-char{ width:24px; height:36px; background:var(--ink-2); border-radius:7px; display:flex; align-items:center; justify-content:center; font-family:'JetBrains Mono',monospace; font-weight:700; font-size:15px; color:var(--gold); border:1px solid rgba(255,255,255,0.06); }
+  .live-ticker{ margin-top:12px; text-align:center; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--slate); min-height:16px; }
+  .honesty-note{ margin-top:14px; background:var(--paper-dim); border-radius:12px; padding:11px 12px; font-size:11.5px; color:var(--slate-dark); line-height:1.55; }
+  .live-count{ display:flex; justify-content:space-between; margin-top:12px; font-size:11.5px; color:var(--slate-dark); }
+  .live-count b{ color:var(--ink); font-family:'JetBrains Mono',monospace; }
+
+  /* result */
+  .result-wrap{ margin-top:14px; background:var(--ink); border-radius:var(--radius-lg); padding:18px 12px 16px; }
+  .result-lbl{ text-align:center; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); margin-bottom:10px;}
+  .winner-slot{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .compare-row{ display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-top:1px solid var(--line-soft); }
+  .compare-row:first-of-type{ border-top:none; }
+  .compare-tag{ font-size:10.5px; color:var(--slate-dark); font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+  .compare-code{ font-family:'JetBrains Mono',monospace; font-weight:600; font-size:12.5px; }
+  .result-status{ margin-top:12px; padding:12px 14px; border-radius:12px; font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:8px; }
+  .result-status.lose{ background:var(--paper-dim); color:var(--slate-dark); }
+  .result-status.win{ background:var(--verify-dim); color:#0c5c3d; }
+  .demo-toggle{ margin-top:12px; display:flex; align-items:center; justify-content:space-between; gap:10px; background:#fff; border:1.5px dashed var(--line-soft); border-radius:12px; padding:10px 12px; }
+  .demo-toggle span{ font-size:10.5px; color:var(--slate-dark); font-weight:600; }
+  .toggle-sw{ width:36px; height:21px; border-radius:999px; background:var(--paper-dim); position:relative; cursor:pointer; flex:none; }
+  .toggle-sw::after{ content:""; position:absolute; top:2px; left:2px; width:17px; height:17px; border-radius:50%; background:var(--ink); transition:left .2s ease; }
+  .toggle-sw.on{ background:var(--gold); }
+  .toggle-sw.on::after{ left:17px; background:#2b1a02; }
+
+  /* verification */
+  .alert-mock{
+    margin-top:14px; background:#000; border-radius:14px; padding:13px 14px; color:#e8ffe8;
+    font-family:'JetBrains Mono',monospace; border:1px solid #143;
+  }
+  .alert-mock .sender{ font-size:10px; color:#7fd99a; font-weight:700; letter-spacing:.05em; }
+  .alert-mock .msg{ font-size:11.5px; line-height:1.6; margin-top:6px; color:#d7f5df; }
+  .never-list{ margin-top:8px; display:flex; flex-direction:column; gap:9px; }
+  .never-item{ display:flex; gap:9px; align-items:flex-start; }
+  .never-item .x{ color:var(--alert); font-weight:800; font-size:13px; flex:none; margin-top:1px; }
+  .never-item p{ font-size:12px; color:var(--slate-dark); line-height:1.5; }
+  .call-mock{
+    margin-top:14px; border-radius:14px; overflow:hidden; position:relative; height:120px;
+    background:linear-gradient(135deg, #1a2060, #2b3384);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .call-mock .play{ width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,0.16); display:flex; align-items:center; justify-content:center; font-size:16px; cursor:pointer; border:1.5px solid rgba(255,255,255,0.4); }
+  .call-mock .cap{ position:absolute; bottom:8px; left:12px; right:12px; font-size:10.5px; color:#fff; opacity:.85; }
+
+  /* winners */
+  .winners-scroll{ display:flex; gap:11px; overflow-x:auto; margin-top:14px; padding-bottom:6px; }
+  .win-card{ flex:0 0 auto; width:160px; background:var(--ink); color:#fff; border-radius:18px; padding:14px 13px; position:relative; }
+  .win-card .crown{ font-size:18px; }
+  .win-card .avatar{ width:36px; height:36px; border-radius:11px; background:var(--ink-2); border:1.5px solid var(--gold); display:flex; align-items:center; justify-content:center; font-family:'Fraunces',serif; font-weight:600; margin-top:8px; }
+  .win-card .name{ font-weight:700; font-size:13px; margin-top:9px; }
+  .win-card .prize{ font-size:10.5px; color:var(--slate); margin-top:2px; }
+  .win-card .tick{ font-family:'JetBrains Mono',monospace; font-size:9.5px; color:var(--gold); margin-top:7px; letter-spacing:.02em; }
+  .win-card .verified-badge{ margin-top:8px; display:flex; align-items:center; gap:4px; font-size:9px; color:var(--verify); font-weight:700; }
+  .win-card.is-you{ border:1.5px solid var(--gold); }
+  .win-card .you-ribbon{ position:absolute; top:-8px; right:10px; background:var(--gold); color:#2b1a02; font-size:9px; font-weight:800; padding:3px 8px; border-radius:999px; }
+  .reassure{ margin-top:16px; }
+
+  /* archive/verified */
+  .seal-hero{ margin-top:14px; background:var(--ink); border-radius:var(--radius-lg); padding:22px 16px; text-align:center; }
+  .seal-ring{ width:72px; height:72px; margin:0 auto; border-radius:50%; border:2px solid var(--gold); display:flex; align-items:center; justify-content:center; position:relative; transition:transform .5s ease; }
+  .seal-ring.unlocked{ border-color:var(--verify); transform:rotate(8deg); }
+  .seal-ring .ic{ font-size:24px; }
+  .seal-hero .st{ margin-top:10px; font-weight:700; font-size:13.5px; }
+  .seal-hero .sd{ margin-top:4px; font-size:11px; color:var(--slate); }
+  .hash-line{ margin-top:12px; background:var(--ink-2); border-radius:10px; padding:9px 11px; text-align:left; }
+  .hash-line .k{ font-size:9px; color:var(--slate); text-transform:uppercase; letter-spacing:.08em; font-weight:700; }
+  .hash-line .v{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--gold); margin-top:3px; word-break:break-all; }
+
+  .license-block{ margin-top:12px; }
+  .license-row{ display:flex; justify-content:space-between; padding:7px 0; border-top:1px solid var(--line-soft); }
+  .license-row:first-child{ border-top:none; padding-top:0; }
+  .license-row .k{ font-size:11px; color:var(--slate-dark); font-weight:600; }
+  .license-row .v{ font-size:11px; color:var(--ink); font-weight:700; text-align:right; }
+  .placeholder-note{ margin-top:8px; font-size:10px; color:var(--gold-deep); background:var(--amber-dim); border-radius:8px; padding:7px 9px; line-height:1.5; }
+
+  .stat-card{ display:flex; justify-content:space-between; align-items:center; }
+  .stat-card .v{ font-family:'Fraunces',serif; font-weight:600; font-size:19px; color:var(--ink); }
+  .stat-card .k{ font-size:10.5px; color:var(--slate-dark); }
+
+  /* trust sheet */
+  .sheet-backdrop{ position:absolute; inset:0; background:rgba(11,15,46,0.55); z-index:80; opacity:0; pointer-events:none; transition:opacity .25s ease; }
+  .sheet-backdrop.show{ opacity:1; pointer-events:auto; }
+  .sheet{ position:absolute; left:0; right:0; bottom:0; background:var(--paper); border-radius:24px 24px 0 0; padding:16px 20px 26px; max-height:82%; overflow-y:auto; z-index:81; transform:translateY(100%); transition:transform .3s ease; color:var(--ink); }
+  .sheet.show{ transform:translateY(0); }
+  .sheet-grab{ width:36px; height:4px; background:var(--line-soft); border-radius:3px; margin:0 auto 12px; }
+  .sheet h4{ font-family:'Fraunces',serif; font-size:17px; font-weight:600; }
+  .sheet .lede{ font-size:11.5px; color:var(--slate-dark); margin-top:5px; line-height:1.55; }
+  .sheet-section{ margin-top:16px; }
+  .sheet-section .stitle{ font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--gold-deep); margin-bottom:8px; }
+  .faq{ display:flex; flex-direction:column; gap:11px; }
+  .faq .q{ font-weight:700; font-size:12.5px; display:flex; gap:7px; }
+  .faq .a{ font-size:11.5px; color:var(--slate-dark); margin-top:3px; line-height:1.55; padding-left:19px; }
+  .sheet-close{ margin-top:16px; }
+
+  .dock{ width:100%; max-width:390px; background:rgba(255,255,255,0.04); border:1px solid var(--line); border-radius:18px; padding:14px 16px; }
+  .dock .lbl{ font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--slate); }
+  .dock-steps{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .dock-step{ font-size:10.5px; font-weight:700; padding:6px 9px; border-radius:8px; cursor:pointer; background:rgba(255,255,255,0.05); color:var(--slate); border:1px solid transparent; }
+  .dock-step.active{ background:var(--gold); color:#2b1a02; }
+  .dock-nav{ display:flex; gap:8px; margin-top:12px; }
+  .dock-nav button{ flex:1; padding:9px; border-radius:9px; border:1px solid var(--line); background:transparent; color:var(--paper); font-family:'Manrope'; font-weight:700; font-size:12px; cursor:pointer; }
+  .dock-nav button:hover{ border-color:var(--gold); color:var(--gold); }
+  .dock-caption{ margin-top:12px; font-size:11.5px; color:var(--slate); line-height:1.6; min-height:52px; }
+
+  .notes{ display:flex; flex-direction:column; gap:14px; }
+  .note-card{ background:rgba(255,255,255,0.035); border:1px solid var(--line); border-radius:18px; padding:19px 21px; }
+  .note-card h5{ font-family:'Fraunces',serif; font-size:15.5px; font-weight:600; color:#fff; }
+  .note-card .tagline{ font-family:'JetBrains Mono',monospace; font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); margin-bottom:7px; display:block; }
+  .note-card p{ font-size:12.5px; color:var(--slate); line-height:1.62; margin-top:7px; }
+  .note-card ul{ margin-top:9px; padding-left:17px; }
+  .note-card li{ font-size:12px; color:var(--slate); line-height:1.65; }
+  .note-card li b{ color:var(--paper); }
+
+  @media (max-width: 980px){
+    .layout{ grid-template-columns:1fr; justify-items:center; }
+    .notes{ width:100%; max-width:390px; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="page-head">
+    <div class="eyebrow">Draw experience — v2</div>
+    <h1>Built for a Lagos user who has seen enough fake giveaways to trust nobody by default.</h1>
+    <p>Same draw journey, rebuilt around three ideas: total transparency about odds, a purchase cut-off that's explained as a fairness feature rather than hidden as a rule, and an explicit answer to the question every Nigerian asks a "you won" message — how do I know this isn't a scam?</p>
+    <div class="changelog">
+      <span class="chip">+ Boost Your Odds screen</span>
+      <span class="chip">+ 20-second sales lock</span>
+      <span class="chip">+ Winner verification & anti-scam card</span>
+      <span class="chip">+ Licensing block</span>
+      <span class="chip">+ Spend transparency</span>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="phone-wrap">
+      <div class="phone" id="phone">
+        <div class="notch"></div>
+        <div class="statusbar"><span>9:41</span><span>Winit</span></div>
+
+        <div class="app-chrome">
+          <div class="brand"><span class="dot"></span> Winit</div>
+          <button class="help-btn" onclick="openSheet()">?</button>
+        </div>
+
+        <div class="trust-strip" onclick="openSheet()">
+          <span class="badge" id="badgeSeal">🔒 Verifiable</span>
+          <span class="badge">🏛️ Licensed</span>
+          <span class="badge">💬 Lagos support</span>
+        </div>
+
+        <div class="app-body">
+
+          <!-- 1. LOBBY -->
+          <div class="screen" data-screen="lobby">
+            <div class="eyebrow-sm">Draw Wt-0619 · Dubai Getaway</div>
+            <div class="h-screen">You're in. Here's exactly where you stand.</div>
+
+            <div class="prize-hero">
+              <div class="pattern"></div>
+              <div class="content">
+                <div class="tag">Grand prize</div>
+                <h3>All-expenses Dubai getaway for two</h3>
+                <div class="meta">+ 4 runner-up prizes: flats & cash · Draw #WT-0619</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="odds-row">
+                <div class="odds-box">
+                  <div class="k">Your tickets</div>
+                  <div class="v" id="lobbyTickets">3</div>
+                </div>
+                <div class="odds-box" style="text-align:right;">
+                  <div class="k">Your odds right now</div>
+                  <div class="v" id="lobbyOdds">1 in 16,114</div>
+                  <div class="v small" id="lobbyOddsPct">0.0062%</div>
+                </div>
+              </div>
+              <button class="btn btn-gold" onclick="go('boost')">Boost your odds</button>
+            </div>
+
+            <div class="mini-cd">
+              <div>
+                <div class="lft">Draw starts in</div>
+                <div class="note" id="lobbyLockNote">Ticket sales close 20s before start</div>
+              </div>
+              <div class="rgt" id="lobbyCd">00:45</div>
+            </div>
+
+            <div class="link-row" onclick="openSheet()">🏛️ Licensed & regulated — see details →</div>
+          </div>
+
+          <!-- 2. BOOST -->
+          <div class="screen" data-screen="boost">
+            <div class="eyebrow-sm">Draw Wt-0619</div>
+            <div class="h-screen">More tickets, better odds. Nothing hidden.</div>
+            <div class="sub">₦500 per ticket. Odds shown below update live and use the exact same maths the draw engine uses.</div>
+
+            <div class="card stepper-card">
+              <div class="stepper-row">
+                <div>
+                  <div class="eyebrow-sm">Add tickets</div>
+                </div>
+                <div class="stepper-ctrl">
+                  <button class="stepper-btn" onclick="adjustQty(-1)">−</button>
+                  <div class="stepper-val" id="qtyVal">5</div>
+                  <button class="stepper-btn" onclick="adjustQty(1)">+</button>
+                </div>
+              </div>
+
+              <div class="preview-box">
+                <div class="preview-row"><span class="k">Cost</span><span class="v" id="qtyCost">₦2,500</span></div>
+                <div class="preview-row"><span class="k">Odds now</span><span class="v" id="oddsNow">1 in 16,114</span></div>
+                <div class="preview-row"><span class="k">Odds after this</span><span class="v up" id="oddsAfter">1 in 6,046</span></div>
+              </div>
+
+              <button class="btn btn-primary" id="addTicketsBtn" onclick="addTickets()">Add tickets — pay with Paystack</button>
+            </div>
+
+            <div class="spend-note">
+              <div class="t">You've spent <b id="spendToday">₦1,500</b> on tickets today</div>
+              <div class="lnk">Set a reminder</div>
+            </div>
+
+            <div class="sales-status open" id="salesStatus">
+              🟢 Sales open — closes automatically in <span id="boostCd">00:45</span>
+            </div>
+            <div class="sub" style="margin-top:8px;">Sales lock 20 seconds before the draw starts, so the ticket pool can't change once it's about to be used.</div>
+          </div>
+
+          <!-- 3. COUNTDOWN -->
+          <div class="screen" data-screen="countdown">
+            <div class="eyebrow-sm">Draw Wt-0619</div>
+            <div class="h-screen">Sales are closing</div>
+
+            <div class="countdown">
+              <div class="lbl">Draw starts in</div>
+              <div class="tz">West Africa Time (WAT) — same time as Lagos</div>
+              <div class="cd-tiles">
+                <div class="cd-unit"><div class="tile" id="cdMin">00</div><span class="u">min</span></div>
+                <div class="colon">:</div>
+                <div class="cd-unit"><div class="tile" id="cdSec">45</div><span class="u">sec</span></div>
+              </div>
+
+              <div style="width:100%;">
+                <div class="phase-line">
+                  <div class="phase-seg"><div class="fill" id="phaseFillOpen"></div></div>
+                  <div class="phase-seg lock-seg"><div class="fill" id="phaseFillLock"></div></div>
+                </div>
+                <div class="phase-labels"><span>Sales open</span><span>Locked</span></div>
+              </div>
+
+              <div class="lock-overlay" id="lockOverlay">
+                <div class="ic">🔒</div>
+                <div class="t">Ticket pool is final</div>
+                <div class="s">Nobody — including Winit — can add, remove, or reassign a ticket from here. The draw now runs on exactly what's in the pool.</div>
+              </div>
+            </div>
+
+            <div class="link-row" onclick="resetCountdown()">↻ Replay countdown</div>
+          </div>
+
+          <!-- 4. SEALING -->
+          <div class="screen" data-screen="sealing">
+            <div class="eyebrow-sm">Getting ready</div>
+            <div class="h-screen">Locking everything in before a result exists.</div>
+            <div class="sub">Nothing about the result can change once this checklist is complete.</div>
+
+            <div class="checklist" id="checklist">
+              <div class="check-item" data-i="0"><div class="cbox">✓</div><div><div class="txt">Ticket pool locked at 48,343 tickets</div><div class="sub-txt">Matches what you saw on the countdown</div></div></div>
+              <div class="check-item" data-i="1"><div class="cbox">✓</div><div><div class="txt">Random seed generated & sealed</div><div class="sub-txt">Hash published — visible under "Verifiable" above</div></div></div>
+              <div class="check-item" data-i="2"><div class="cbox">✓</div><div><div class="txt">Draw engine independently verified</div><div class="sub-txt">Runs the same way for every draw, every time</div></div></div>
+              <div class="check-item" data-i="3"><div class="cbox">✓</div><div><div class="txt">Start time logged for the record</div><div class="sub-txt">8:00:04 PM WAT · timestamp kept in the public archive</div></div></div>
+            </div>
+          </div>
+
+          <!-- 5. LIVE -->
+          <div class="screen" data-screen="live">
+            <div class="eyebrow-sm">Draw Wt-0619 · Dubai Getaway</div>
+            <div class="h-screen">Draw in progress</div>
+            <div class="status-pill"><span class="pulse"></span> Computing result now</div>
+
+            <div class="reel-wrap">
+              <div class="reel-groups" id="reelGroups"></div>
+              <div class="live-ticker" id="liveTicker">Verifying entries…</div>
+            </div>
+
+            <div class="live-count"><span>Tickets in this draw</span><b>48,343</b></div>
+            <div class="honesty-note">This isn't a video or a ball machine — it's a live, verifiable calculation using the sealed seed from the last step. Nobody is choosing this, including us.</div>
+          </div>
+
+          <!-- 6. RESULT -->
+          <div class="screen" data-screen="result">
+            <div class="eyebrow-sm">Draw Wt-0619 · Result</div>
+            <div class="h-screen">5 winning tickets, revealed one at a time</div>
+
+            <div class="result-wrap">
+              <div class="result-lbl" id="resultLbl">Revealing winner 1 of 5</div>
+              <div class="winner-slot"><div class="reel-block" id="resultCode"></div></div>
+            </div>
+
+            <div class="card">
+              <div class="compare-row"><span class="compare-tag">Your ticket</span><span class="compare-code" id="yourCode">9J4K-P2XM-7QRT-VL8N</span></div>
+              <div class="compare-row"><span class="compare-tag">Winning tickets</span><span class="compare-code" style="color:var(--slate-dark); font-size:11px;">5 revealed above</span></div>
+            </div>
+
+            <div class="result-status lose" id="resultStatus">Not among the winners this time — no action needed, you're still entered for the next draw.</div>
+
+            <div class="demo-toggle">
+              <span>Preview what a winning ticket looks like</span>
+              <div class="toggle-sw" id="winToggle" onclick="toggleWinDemo()"></div>
+            </div>
+          </div>
+
+          <!-- 7. VERIFY -->
+          <div class="screen" data-screen="verify">
+            <div class="eyebrow-sm">Before any payout</div>
+            <div class="h-screen">Every winner is verified — here's exactly how</div>
+
+            <div class="alert-mock">
+              <div class="sender">FROM: WINIT-NG</div>
+              <div class="msg">Confirmed: you won 3-Bedroom Flat in Draw #WT-0619 on Winit. We'll call the number on your account within 1 hour to verify. We will NEVER ask for your PIN or a payment to release your prize.</div>
+            </div>
+
+            <div class="call-mock">
+              <div class="play">▶</div>
+              <div class="cap">Verification call — published in the archive within 24 hrs</div>
+            </div>
+
+            <div class="card">
+              <div class="eyebrow-sm">What we will never do</div>
+              <div class="never-list">
+                <div class="never-item"><span class="x">✕</span><p>Ask you to pay a fee, tax, or "clearance charge" to release winnings</p></div>
+                <div class="never-item"><span class="x">✕</span><p>Ask for your ATM PIN, OTP, or full card number — ever, for any reason</p></div>
+                <div class="never-item"><span class="x">✕</span><p>Message you from a personal WhatsApp or Facebook account</p></div>
+                <div class="never-item"><span class="x">✕</span><p>Ask you to keep your win secret from family or the app</p></div>
+              </div>
+            </div>
+            <div class="link-row">🚩 Forward a suspicious message to support →</div>
+          </div>
+
+          <!-- 8. WINNERS -->
+          <div class="screen" data-screen="winners">
+            <div class="eyebrow-sm">Draw Wt-0619</div>
+            <div class="h-screen">Meet today's winners</div>
+            <div class="sub">Ticket numbers are partly hidden to protect winners' privacy. Yours is visible in full under My Tickets.</div>
+
+            <div class="winners-scroll" id="winnersScroll"></div>
+
+            <div class="card reassure">
+              <div style="font-weight:700; font-size:13px;">Didn't win this time?</div>
+              <div class="sub" style="margin-top:4px;">The next Dubai Getaway draw opens in 2 days. Your account, your tickets, your history — all still here.</div>
+              <button class="btn btn-primary">Join the next draw</button>
+            </div>
+          </div>
+
+          <!-- 9. ARCHIVE -->
+          <div class="screen" data-screen="archive">
+            <div class="eyebrow-sm">Draw Wt-0619 · Archived</div>
+            <div class="h-screen">Check the maths yourself</div>
+
+            <div class="seal-hero">
+              <div class="seal-ring" id="sealRing"><span class="ic" id="sealIcon">🔒</span></div>
+              <div class="st" id="sealStatus">Seal opening…</div>
+              <div class="sd" id="sealSub">The random seed is being revealed</div>
+              <div class="hash-line"><div class="k">Published before the draw</div><div class="v">8f3a71c0e9b2d4a6f10c3e88b9d5a2f7</div></div>
+              <div class="hash-line" id="seedLine" style="opacity:0;"><div class="k">Revealed seed</div><div class="v">wt0619-lagos-2f9e6e-verify</div></div>
+            </div>
+
+            <div class="card license-block">
+              <div class="eyebrow-sm">Registration & licensing</div>
+              <div class="license-row"><span class="k">Registered company</span><span class="v">RC-XXXXXXX</span></div>
+              <div class="license-row"><span class="k">Draw license no.</span><span class="v">LSLB/XXXX/2026</span></div>
+              <div class="license-row"><span class="k">Regulator</span><span class="v">[State lottery regulator]</span></div>
+              <div class="placeholder-note">Placeholder — swap in your real CAC and lottery board registration numbers before shipping. Never publish a license claim that isn't real or verifiable.</div>
+            </div>
+
+            <div class="card stat-card">
+              <div><div class="k">Paid to winners since Jan 2026 (sample)</div><div class="v" id="paidStat">₦48,200,000</div></div>
+              <span>↗</span>
+            </div>
+
+            <button class="btn btn-ghost">Download draw certificate</button>
+          </div>
+
+        </div>
+
+        <div class="journey-rail" id="journeyRail"></div>
+
+        <div class="toast" id="toast"></div>
+
+        <div class="sheet-backdrop" id="sheetBackdrop" onclick="closeSheet()"></div>
+        <div class="sheet" id="sheet">
+          <div class="sheet-grab"></div>
+          <h4>Why you can trust this draw</h4>
+          <div class="lede">No spinning ball machine, no studio lights — just a process anyone in Lagos can check for themselves.</div>
+
+          <div class="sheet-section">
+            <div class="stitle">Verifiable process</div>
+            <div class="faq">
+              <div><div class="q">🎲 Is the draw really random?</div><div class="a">Yes. A random seed is sealed and time-stamped before the draw starts, so it can't be picked to favour anyone.</div></div>
+              <div><div class="q">🙅 Can Winit staff choose who wins?</div><div class="a">No — nobody can see or influence the result before the seal opens after the draw.</div></div>
+              <div><div class="q">🎫 How do I know my ticket really entered?</div><div class="a">Your ticket is marked "Confirmed" the moment payment clears, visible under My Tickets before, during and after the draw.</div></div>
+            </div>
+          </div>
+
+          <div class="sheet-section">
+            <div class="stitle">Licensed & regulated</div>
+            <div class="faq">
+              <div><div class="q">🏛️ Is this legal in Nigeria?</div><div class="a">Winit operates under a registered company (CAC) and a lottery license from [state regulator] — both numbers are published on the draw archive screen for anyone to check.</div></div>
+            </div>
+          </div>
+
+          <div class="sheet-section">
+            <div class="stitle">Lagos-based support</div>
+            <div class="faq">
+              <div><div class="q">💬 Can I reach a real person?</div><div class="a">Yes — WhatsApp and phone support, staffed from our Lagos office, not a chatbot that never replies.</div></div>
+            </div>
+          </div>
+
+          <button class="btn btn-primary sheet-close" onclick="closeSheet()">Got it</button>
+        </div>
+
+      </div>
+
+      <div class="dock">
+        <div class="lbl">Presentation controls</div>
+        <div class="dock-steps" id="dockSteps"></div>
+        <div class="dock-nav"><button onclick="step(-1)">← Back</button><button onclick="step(1)">Next →</button></div>
+        <div class="dock-caption" id="dockCaption"></div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <div class="note-card">
+        <span class="tagline">The core reframe</span>
+        <h5>The lock isn't a restriction — it's the pitch</h5>
+        <p>Instead of quietly disabling purchases at T-20s, the design names it out loud, twice, before it happens (lobby countdown label, boost screen status bar) so it lands as "they built this so nobody can cheat" instead of "why did my payment fail?" A rule a user doesn't understand reads as suspicious; the same rule explained in advance reads as proof.</p>
+      </div>
+      <div class="note-card">
+        <span class="tagline">Biggest lever for Lagos specifically</span>
+        <h5>The anti-scam card on the Verify screen</h5>
+        <p>The single most common reason a Nigerian ignores a "you won" message is advance-fee fraud — fake winner alerts that ask for a "clearance fee" or a PIN. Stating explicitly, in the app itself, everything Winit will never ask for turns your own product into the thing that teaches users to distrust the scam messages, not yours.</p>
+      </div>
+      <div class="note-card">
+        <span class="tagline">Handled carefully</span>
+        <h5>Odds transparency, not pressure</h5>
+        <p>"Boost your odds" is real and honest — more tickets genuinely means better odds, shown with real maths. What's deliberately absent: fake scarcity ("only 3 spots left"), countdown-induced panic copy, or hiding the day's spend. The spend line is a small, non-judgmental transparency habit borrowed from Nigerian fintech apps users already trust — it costs little and reads as a platform that isn't trying to trap them.</p>
+      </div>
+      <div class="note-card">
+        <span class="tagline">Fill in before shipping</span>
+        <h5>Licensing block is a placeholder</h5>
+        <ul>
+          <li><b>CAC number</b> and <b>lottery/raffle license number</b> must be your real, verifiable registration — a fabricated one is worse than none.</li>
+          <li>The "paid to winners" figure is sample data for the mockup, flagged as such on-screen.</li>
+          <li>The verification call and witness concepts are genuine features to build, not claims of something already happening — describe them accurately once live.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const stages = ['lobby','boost','countdown','sealing','live','result','verify','winners','archive'];
+  const captions = {
+    lobby: "Odds are shown as a plain fraction and percentage, not hidden behind marketing copy. The licensing badge sits one tap away before anyone has to ask for it.",
+    boost: "The odds calculator uses the real formula live. The sales-lock timer is visible here too, framed as a fairness mechanic rather than a checkout deadline.",
+    countdown: "A phase bar plus a full-screen lock moment at zero make the T-20s cutoff impossible to miss — and impossible to blame on a glitch.",
+    sealing: "A fourth checklist line — the timestamp being logged for the record — adds an audit trail most raffle apps never show.",
+    live: "Same honest framing as before: this is a computation, not a performance. No fabricated ball-machine footage.",
+    result: "Winners reveal one at a time in a readable format. Still no per-character 'near miss' highlighting — that pattern manufactures false hope and belongs to scratch-card scams, not this.",
+    verify: "This is the new core screen for Lagos. It preempts advance-fee scam fear directly, in the app's own voice, before a user has to wonder.",
+    winners: "Identities stay protective by default — first name + initial, partly masked ticket — while still feeling like real people, not placeholders.",
+    archive: "The seal opens, the seed is revealed, and licensing sits right below it. Everything a skeptical user would want to screenshot and check is on one screen."
+  };
+  let idx = 0;
+  let winMode = false;
+  const ticketPrice = 500;
+  const poolOthers = 48338; // other tickets already in the pool
+  let userTickets = 3;
+  let pendingQty = 5;
+  let todaySpend = 1500;
+
+  const winners = [
+    {name:"Oyinlola A.", prize:"3-bedroom flat", ticket:"K7WQ-2XLM-9PDR-4TZC"},
+    {name:"Blessing O.", prize:"3-bedroom flat", ticket:"LVCB-GNWU-NQUS-TGMU"},
+    {name:"Chidera E.", prize:"Dubai getaway", ticket:"M3RF-8KJT-VXNP-Q5WL"},
+    {name:"Ifeoma N.", prize:"₦500,000 cash", ticket:"9DHX-3MZQ-7RKB-LP2V"},
+    {name:"Tunde A.", prize:"₦500,000 cash", ticket:"T5NB-XW8Q-2FLR-MK9D"}
+  ];
+  const YOUR_TICKET_LOSE = "9J4K-P2XM-7QRT-VL8N";
+  const YOUR_TICKET_WIN  = "LVCB-GNWU-NQUS-TGMU";
+
+  function fmtN(n){ return '₦' + Math.round(n).toLocaleString('en-NG'); }
+  function fmtInt(n){ return Math.round(n).toLocaleString('en-NG'); }
+  function computeOdds(tickets){
+    const total = poolOthers + tickets;
+    const ratio = Math.round(total / Math.max(tickets,1));
+    const pct = (tickets/total*100);
+    return { ratio, pct };
+  }
+  function maskTicket(t){ const p = t.split('-'); return p[0]+'-••••-••••-'+p[3]; }
+
+  // dock + rail
+  const dockStepsEl = document.getElementById('dockSteps');
+  const railEl = document.getElementById('journeyRail');
+  const stepLabels = {lobby:'Lobby',boost:'Boost',countdown:'Lock',sealing:'Seal',live:'Live',result:'Result',verify:'Verify',winners:'Winners',archive:'Archive'};
+  stages.forEach((s,i)=>{
+    const b = document.createElement('div'); b.className='dock-step'; b.textContent = stepLabels[s];
+    b.onclick = ()=>{ idx=i; render(); };
+    dockStepsEl.appendChild(b);
+    const seg = document.createElement('div'); seg.className='seg'; railEl.appendChild(seg);
+  });
+
+  function render(){
+    document.querySelectorAll('.screen').forEach(el=> el.classList.toggle('active', el.dataset.screen===stages[idx]));
+    document.querySelectorAll('.dock-step').forEach((el,i)=> el.classList.toggle('active', i===idx));
+    document.querySelectorAll('.journey-rail .seg').forEach((el,i)=>{
+      el.classList.remove('done','now');
+      if(i<idx) el.classList.add('done');
+      if(i===idx) el.classList.add('now');
+    });
+    document.getElementById('dockCaption').textContent = captions[stages[idx]];
+
+    const badgeSeal = document.getElementById('badgeSeal');
+    if(stages[idx]==='archive'){ badgeSeal.textContent='🔓 Verified'; }
+    else { badgeSeal.textContent='🔒 Verifiable'; }
+
+    updateLobbyOdds();
+    updateBoostPreview();
+
+    if(stages[idx]==='sealing') runChecklist();
+    if(stages[idx]==='live') runLive();
+    if(stages[idx]==='result') runResult();
+    if(stages[idx]==='verify') {}
+    if(stages[idx]==='winners') renderWinners();
+    if(stages[idx]==='archive') runArchive();
+  }
+  function step(dir){ idx = Math.max(0, Math.min(stages.length-1, idx+dir)); render(); }
+  function go(name){ idx = stages.indexOf(name); render(); }
+
+  // ---------- shared countdown / lock ----------
+  const TOTAL_SECONDS = 45;
+  const LOCK_AT = 20;
+  let remaining = TOTAL_SECONDS;
+  function resetCountdown(){ remaining = TOTAL_SECONDS; updateCountdownUI(); }
+
+  setInterval(()=>{
+    const activeStage = stages[idx];
+    if(['lobby','boost','countdown'].includes(activeStage)){
+      remaining--;
+      if(remaining < -3) remaining = TOTAL_SECONDS;
+      updateCountdownUI();
+    }
+  }, 1000);
+
+  function updateCountdownUI(){
+    const r = Math.max(remaining, 0);
+    const mm = String(Math.floor(r/60)).padStart(2,'0');
+    const ss = String(r%60).padStart(2,'0');
+    const isLocked = remaining <= 0;
+    const isClosing = remaining <= LOCK_AT && remaining > 0;
+
+    // lobby
+    const lobbyCd = document.getElementById('lobbyCd');
+    if(lobbyCd) lobbyCd.textContent = mm+':'+ss;
+    const lobbyLockNote = document.getElementById('lobbyLockNote');
+    if(lobbyLockNote) lobbyLockNote.textContent = isLocked ? '🔒 Sales locked for this draw' : 'Ticket sales close 20s before start';
+
+    // boost
+    const boostCd = document.getElementById('boostCd');
+    if(boostCd) boostCd.textContent = mm+':'+ss;
+    const salesStatus = document.getElementById('salesStatus');
+    const addBtn = document.getElementById('addTicketsBtn');
+    if(salesStatus){
+      salesStatus.classList.remove('open','closing','locked');
+      if(isLocked){ salesStatus.classList.add('locked'); salesStatus.innerHTML = '🔒 Sales locked — the pool for this draw is final'; if(addBtn) addBtn.disabled = true; }
+      else if(isClosing){ salesStatus.classList.add('closing'); salesStatus.innerHTML = '🟡 Closing soon — locks in <span>'+ss+'s</span>'; if(addBtn) addBtn.disabled = false; }
+      else { salesStatus.classList.add('open'); salesStatus.innerHTML = '🟢 Sales open — closes automatically in <span>'+mm+':'+ss+'</span>'; if(addBtn) addBtn.disabled = false; }
+    }
+
+    // countdown screen
+    const cdMin = document.getElementById('cdMin'), cdSec = document.getElementById('cdSec');
+    if(cdMin){ cdMin.textContent = mm; cdSec.textContent = ss; }
+    document.querySelectorAll('#screenCountdownTiles').length; // noop guard
+    const tiles = document.querySelectorAll('.cd-tiles .tile');
+    tiles.forEach(t=>{
+      t.classList.remove('closing','locked');
+      if(isLocked) t.classList.add('locked');
+      else if(isClosing) t.classList.add('closing');
+    });
+    const lockOverlay = document.getElementById('lockOverlay');
+    if(lockOverlay) lockOverlay.classList.toggle('show', isLocked);
+
+    const openFill = document.getElementById('phaseFillOpen');
+    const lockFill = document.getElementById('phaseFillLock');
+    if(openFill && lockFill){
+      const openElapsed = Math.min(TOTAL_SECONDS - LOCK_AT, TOTAL_SECONDS - Math.max(remaining, LOCK_AT));
+      const openPct = Math.min(100, (openElapsed/(TOTAL_SECONDS-LOCK_AT))*100);
+      openFill.style.width = openPct + '%';
+      const lockElapsed = remaining < LOCK_AT ? (LOCK_AT - Math.max(remaining,0)) : 0;
+      const lockPct = Math.min(100, (lockElapsed/LOCK_AT)*100);
+      lockFill.style.width = lockPct + '%';
+    }
+  }
+  updateCountdownUI();
+
+  // ---------- lobby / boost odds ----------
+  function updateLobbyOdds(){
+    const o = computeOdds(userTickets);
+    const t = document.getElementById('lobbyTickets'); if(t) t.textContent = userTickets;
+    const od = document.getElementById('lobbyOdds'); if(od) od.textContent = '1 in ' + fmtInt(o.ratio);
+    const pct = document.getElementById('lobbyOddsPct'); if(pct) pct.textContent = o.pct.toFixed(4)+'%';
+    const spendEl = document.getElementById('spendToday'); if(spendEl) spendEl.textContent = fmtN(todaySpend);
+  }
+  function updateBoostPreview(){
+    const qtyVal = document.getElementById('qtyVal'); if(qtyVal) qtyVal.textContent = pendingQty;
+    const cost = document.getElementById('qtyCost'); if(cost) cost.textContent = fmtN(pendingQty*ticketPrice);
+    const now = computeOdds(userTickets);
+    const after = computeOdds(userTickets + pendingQty);
+    const oddsNow = document.getElementById('oddsNow'); if(oddsNow) oddsNow.textContent = '1 in ' + fmtInt(now.ratio);
+    const oddsAfter = document.getElementById('oddsAfter'); if(oddsAfter) oddsAfter.textContent = '1 in ' + fmtInt(after.ratio);
+  }
+  function adjustQty(d){
+    pendingQty = Math.max(1, Math.min(50, pendingQty+d));
+    updateBoostPreview();
+  }
+  function addTickets(){
+    if(remaining <= 0) return;
+    userTickets += pendingQty;
+    todaySpend += pendingQty*ticketPrice;
+    showToast('E don enter! 🎉 Your odds just improved to 1 in ' + fmtInt(computeOdds(userTickets).ratio) + '.');
+    updateLobbyOdds();
+    updateBoostPreview();
+  }
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(()=> t.classList.remove('show'), 2600);
+  }
+
+  // ---------- sealing checklist ----------
+  let prepTimer;
+  function runChecklist(){
+    document.querySelectorAll('.check-item').forEach(el=>el.classList.remove('on'));
+    clearInterval(prepTimer);
+    let i=0;
+    prepTimer = setInterval(()=>{
+      const el = document.querySelector('.check-item[data-i="'+i+'"]');
+      if(el) el.classList.add('on');
+      i++;
+      if(i>3) clearInterval(prepTimer);
+    }, 400);
+  }
+
+  // ---------- live reel ----------
+  const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let liveTimer, tickerTimer;
+  const tickerMsgs = ['Verifying entries…','Applying random seed…','Cross-checking ticket pool…','Finalizing result…'];
+  function randChar(){ return CHARS[Math.floor(Math.random()*CHARS.length)]; }
+  function buildReel(container, groups=4, perGroup=4){
+    container.innerHTML='';
+    for(let g=0; g<groups; g++){
+      const block=document.createElement('div'); block.className='reel-block';
+      for(let c=0;c<perGroup;c++){ const s=document.createElement('div'); s.className='reel-char'; s.textContent=randChar(); block.appendChild(s); }
+      container.appendChild(block);
+    }
+  }
+  function runLive(){
+    const el = document.getElementById('reelGroups');
+    buildReel(el);
+    clearInterval(liveTimer);
+    liveTimer = setInterval(()=>{
+      if(stages[idx]!=='live'){ clearInterval(liveTimer); return; }
+      document.querySelectorAll('#reelGroups .reel-char').forEach(s=> s.textContent = randChar());
+    }, 90);
+    let ti=0;
+    clearInterval(tickerTimer);
+    document.getElementById('liveTicker').textContent = tickerMsgs[0];
+    tickerTimer = setInterval(()=>{
+      if(stages[idx]!=='live'){ clearInterval(tickerTimer); return; }
+      ti=(ti+1)%tickerMsgs.length;
+      document.getElementById('liveTicker').textContent = tickerMsgs[ti];
+    }, 1400);
+  }
+
+  // ---------- result ----------
+  let resultTimer;
+  function runResult(){
+    let w=0;
+    const codeEl = document.getElementById('resultCode');
+    const lblEl = document.getElementById('resultLbl');
+    clearInterval(resultTimer);
+    function showWinner(n){
+      lblEl.textContent = 'Revealing winner '+(n+1)+' of 5';
+      codeEl.innerHTML='';
+      winners[n].ticket.split('-').forEach(group=>{
+        const b=document.createElement('div'); b.className='reel-block';
+        group.split('').forEach(ch=>{ const s=document.createElement('div'); s.className='reel-char'; s.textContent=ch; b.appendChild(s); });
+        codeEl.appendChild(b);
+      });
+    }
+    showWinner(0);
+    resultTimer = setInterval(()=>{
+      if(stages[idx]!=='result'){ clearInterval(resultTimer); return; }
+      w=(w+1)%winners.length; showWinner(w);
+    }, 1700);
+    updateResultStatus();
+  }
+  function updateResultStatus(){
+    const statusEl = document.getElementById('resultStatus');
+    const yourTicket = winMode ? YOUR_TICKET_WIN : YOUR_TICKET_LOSE;
+    document.getElementById('yourCode').textContent = yourTicket;
+    if(winMode){ statusEl.className='result-status win'; statusEl.textContent='🎉 This is one of your tickets — you won a 3-bedroom flat!'; }
+    else { statusEl.className='result-status lose'; statusEl.textContent="Not among the winners this time — no action needed, you're still entered for the next draw."; }
+  }
+  function toggleWinDemo(){
+    winMode = !winMode;
+    document.getElementById('winToggle').classList.toggle('on', winMode);
+    updateResultStatus();
+    if(stages[idx]==='winners') renderWinners();
+  }
+
+  // ---------- winners ----------
+  function renderWinners(){
+    const scroll = document.getElementById('winnersScroll');
+    scroll.innerHTML='';
+    winners.forEach(w=>{
+      const isYou = winMode && w.ticket===YOUR_TICKET_WIN;
+      const card = document.createElement('div');
+      card.className='win-card'+(isYou?' is-you':'');
+      card.innerHTML = `
+        ${isYou?'<div class="you-ribbon">This is you</div>':''}
+        <div class="crown">👑</div>
+        <div class="avatar">${w.name.charAt(0)}</div>
+        <div class="name">${w.name}</div>
+        <div class="prize">${w.prize}</div>
+        <div class="tick">${maskTicket(w.ticket)}</div>
+        <div class="verified-badge">✓ Payout confirmed</div>
+      `;
+      scroll.appendChild(card);
+    });
+  }
+
+  // ---------- archive ----------
+  function runArchive(){
+    const ring=document.getElementById('sealRing'), icon=document.getElementById('sealIcon');
+    const st=document.getElementById('sealStatus'), sd=document.getElementById('sealSub'), seed=document.getElementById('seedLine');
+    ring.classList.remove('unlocked'); icon.textContent='🔒';
+    st.textContent='Seal opening…'; sd.textContent='The random seed is being revealed';
+    seed.style.opacity=0;
+    setTimeout(()=>{
+      if(stages[idx]!=='archive') return;
+      ring.classList.add('unlocked'); icon.textContent='🔓';
+      st.textContent='Verified — matches the published seal';
+      sd.textContent='Anyone can hash this seed and confirm it themselves';
+      seed.style.transition='opacity .4s ease'; seed.style.opacity=1;
+    }, 900);
+  }
+
+  function openSheet(){ document.getElementById('sheetBackdrop').classList.add('show'); document.getElementById('sheet').classList.add('show'); }
+  function closeSheet(){ document.getElementById('sheetBackdrop').classList.remove('show'); document.getElementById('sheet').classList.remove('show'); }
+
+  render();
+</script>
+</body>
+</html>
